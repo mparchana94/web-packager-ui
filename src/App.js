@@ -1,15 +1,15 @@
-import React, { useState } from 'react';
-const API_URL = "https://your-backend-api.onrender.com"; // Update this
+import React, { useState } from "react";
+import axios from "axios";
+
+const API_URL = "http://localhost:3000/api/v1";
 
 const App = () => {
   const [webAppUrl, setWebAppUrl] = useState("");
+  const [appName, setAppName] = useState("");
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState({
-    url: "",
-    server: ""
-  });
-  const [touched, setTouched] = useState(false);
+  const [errors, setErrors] = useState({ url: "", appName: "", server: "" });
+  const [touched, setTouched] = useState({ url: false, appName: false });
 
   const validateUrl = (url) => {
     try {
@@ -20,30 +20,38 @@ const App = () => {
     }
   };
 
-  const handleUrlChange = (e) => {
+  const handleInputChange = (setter, field) => (e) => {
     const value = e.target.value;
-    setWebAppUrl(value);
-    setTouched(true);
-    
-    setErrors(prev => ({ ...prev, url: "" }));
-    
-    if (!value) {
-      setErrors(prev => ({ ...prev, url: "URL is required" }));
-    } else if (!validateUrl(value)) {
-      setErrors(prev => ({ ...prev, url: "Please enter a valid URL (e.g., https://example.com)" }));
+    setter(value);
+    setTouched((prev) => ({ ...prev, [field]: true }));
+
+    if (field === "url") {
+      setErrors((prev) => ({
+        ...prev,
+        url: !value
+          ? "URL is required"
+          : !validateUrl(value)
+          ? "Please enter a valid URL (e.g., https://example.com)"
+          : "",
+      }));
+    } else if (field === "appName") {
+      setErrors((prev) => ({
+        ...prev,
+        appName: !value ? "App Name is required" : "",
+      }));
     }
   };
 
   const handleExport = async () => {
-    setErrors({ url: "", server: "" });
-    
-    if (!webAppUrl) {
-      setErrors(prev => ({ ...prev, url: "URL is required" }));
+    setErrors({ url: "", appName: "", server: "" });
+
+    if (!webAppUrl || !validateUrl(webAppUrl)) {
+      setErrors((prev) => ({ ...prev, url: "Please enter a valid URL" }));
       return;
     }
 
-    if (!validateUrl(webAppUrl)) {
-      setErrors(prev => ({ ...prev, url: "Please enter a valid URL" }));
+    if (!appName.trim()) {
+      setErrors((prev) => ({ ...prev, appName: "App Name is required" }));
       return;
     }
 
@@ -51,20 +59,22 @@ const App = () => {
     setStatus("");
 
     try {
-      const response = await fetch(`${API_URL}/package`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: webAppUrl }),
+      const response = await axios.post(`${API_URL}/convert`, {
+        url: webAppUrl,
+        appName: appName
+      }, {
+        headers: { "Content-Type": "application/json" }
       });
+      console.log(response, 'ARRD')
 
       const data = await response.json();
       if (response.ok) {
         setStatus(`Export started: ${data.message}`);
       } else {
-        setErrors(prev => ({ ...prev, server: data.message || "Server error occurred" }));
+        setErrors((prev) => ({ ...prev, server: data.message || "Server error occurred" }));
       }
     } catch (error) {
-      setErrors(prev => ({ ...prev, server: "Failed to connect to backend. Please try again later." }));
+      setErrors((prev) => ({ ...prev, server: "Failed to connect to backend. Please try again later." }));
     } finally {
       setLoading(false);
     }
@@ -75,15 +85,32 @@ const App = () => {
       <div className="card">
         <div className="card-header">
           <h1 className="card-title">
-            <span className="icon">📦</span>
-            Web App Packager
+            <span className="icon">📦</span> Web App Packager
           </h1>
           <p className="card-description">
-            Enter your web application URL to create a deployable package
+            Enter your web application URL and name to create a deployable package
           </p>
         </div>
-        
+
         <div className="card-content">
+          {/* App Name Input */}
+          <div className="input-group">
+            <div className="input-wrapper">
+              <span className="input-icon">📝</span>
+              <input
+                type="text"
+                placeholder="Enter App Name"
+                value={appName}
+                onChange={handleInputChange(setAppName, "appName")}
+                className={`input-field ${errors.appName && touched.appName ? "error" : ""}`}
+              />
+            </div>
+            {errors.appName && touched.appName && (
+              <div className="error-message">⚠️ {errors.appName}</div>
+            )}
+          </div>
+
+          {/* Web App URL Input */}
           <div className="input-group">
             <div className="input-wrapper">
               <span className="input-icon">🌐</span>
@@ -91,45 +118,26 @@ const App = () => {
                 type="url"
                 placeholder="https://your-webapp.com"
                 value={webAppUrl}
-                onChange={handleUrlChange}
-                onBlur={() => setTouched(true)}
-                className={`url-input ${errors.url && touched ? 'error' : ''}`}
+                onChange={handleInputChange(setWebAppUrl, "url")}
+                className={`input-field ${errors.url && touched.url ? "error" : ""}`}
               />
             </div>
-            {errors.url && touched && (
-              <div className="error-message">
-                <span className="error-icon">⚠️</span>
-                <span>{errors.url}</span>
-              </div>
+            {errors.url && touched.url && (
+              <div className="error-message">⚠️ {errors.url}</div>
             )}
           </div>
 
-          <button
-            onClick={handleExport}
-            disabled={loading || (errors.url && touched)}
-            className="submit-button"
-          >
-            {loading ? (
-              <span>Processing...</span>
-            ) : (
-              <span>Create Package</span>
-            )}
+          {/* Submit Button */}
+          <button onClick={handleExport} disabled={loading} className="submit-button">
+            {loading ? "Processing..." : "Create Package"}
           </button>
 
-          {status && (
-            <div className="status-message success">
-              {status}
-            </div>
-          )}
-
-          {errors.server && (
-            <div className="status-message error">
-              ⚠️ {errors.server}
-            </div>
-          )}
+          {/* Status & Error Messages */}
+          {status && <div className="status-message success">{status}</div>}
+          {errors.server && <div className="status-message error">⚠️ {errors.server}</div>}
         </div>
       </div>
-      
+
       <style jsx>{`
         .app-container {
           min-height: 100vh;
@@ -156,7 +164,7 @@ const App = () => {
         .card-title {
           font-size: 1.5rem;
           font-weight: bold;
-          margin: 0 0 0.5rem 0;
+          margin-bottom: 0.5rem;
           display: flex;
           align-items: center;
           gap: 0.5rem;
@@ -164,7 +172,6 @@ const App = () => {
 
         .card-description {
           color: #666;
-          margin: 0;
         }
 
         .input-group {
@@ -182,33 +189,19 @@ const App = () => {
           transform: translateY(-50%);
         }
 
-        .url-input {
+        .input-field {
           width: 100%;
           padding: 0.75rem 0.75rem 0.75rem 2.5rem;
           border: 1px solid #ddd;
           border-radius: 6px;
           font-size: 1rem;
-          transition: all 0.2s;
         }
 
-        .url-input:focus {
-          outline: none;
-          border-color: #2563eb;
-          box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
-        }
-
-        .url-input.error {
+        .input-field.error {
           border-color: #dc2626;
         }
 
-        .url-input.error:focus {
-          box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.2);
-        }
-
         .error-message {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
           color: #dc2626;
           font-size: 0.875rem;
           margin-top: 0.5rem;
@@ -227,13 +220,8 @@ const App = () => {
           transition: background-color 0.2s;
         }
 
-        .submit-button:hover:not(:disabled) {
+        .submit-button:hover {
           background-color: #1d4ed8;
-        }
-
-        .submit-button:disabled {
-          background-color: #94a3b8;
-          cursor: not-allowed;
         }
 
         .status-message {
@@ -246,13 +234,11 @@ const App = () => {
         .status-message.success {
           background-color: #dcfce7;
           color: #166534;
-          border: 1px solid #86efac;
         }
 
         .status-message.error {
           background-color: #fee2e2;
           color: #991b1b;
-          border: 1px solid #fecaca;
         }
       `}</style>
     </div>
