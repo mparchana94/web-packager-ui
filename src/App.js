@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import axios from "axios";
 
 const API_URL = "http://localhost:3000/api/v1";
 
@@ -58,10 +59,11 @@ const App = () => {
     setStatus("");
 
     try {
-      const response = await fetch(`${API_URL}/convert`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: webAppUrl, name: appName }),
+      const response = await axios.post(`${API_URL}/convert`, {
+        url: webAppUrl,
+        appName: appName
+      }, {
+        headers: { "Content-Type": "application/json" }
       });
       console.log(response, 'ARRD')
 
